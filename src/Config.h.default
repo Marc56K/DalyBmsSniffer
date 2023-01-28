@@ -1,0 +1,10 @@
+#define HOSTNAME "DalyBmsSniffer"
+#define WIFI_SSID "???"
+#define WIFI_PASS "???"
+
+#define MQTT_SERVER "???"
+#define MQTT_SERVERPORT 1883
+#define MQTT_CLIENT "DalyBmsSniffer"
+#define MQTT_USERNAME "???"
+#define MQTT_KEY "???"
+#define MQTT_TOPIC_PREFIX "BMS/"
