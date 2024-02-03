@@ -1,6 +1,7 @@
 #define HOSTNAME "DalyBmsSniffer"
 #define WIFI_SSID "???"
 #define WIFI_PASS "???"
+#define OTA_AUTH "mLqLaXnlBnfz9zH49HNQ"
 
 #define MQTT_SERVER "???"
 #define MQTT_SERVERPORT 1883

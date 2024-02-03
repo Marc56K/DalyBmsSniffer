@@ -24,13 +24,13 @@ bool WifiManager::Connect(const int timeoutInMilis)
             {
                 Serial.print("Obtained IP address: ");
                 Serial.println(WiFi.localIP());
-            }, WiFiEvent_t::SYSTEM_EVENT_STA_GOT_IP));
+            }, ARDUINO_EVENT_WIFI_STA_GOT_IP));
 
         _eventIds.push_back(
             WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info)
             {
                 WiFi.reconnect();
-            }, WiFiEvent_t::SYSTEM_EVENT_STA_DISCONNECTED));
+            }, ARDUINO_EVENT_WIFI_STA_DISCONNECTED));
 
         WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE);
         WiFi.setHostname(_hostName.c_str());

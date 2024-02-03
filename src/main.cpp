@@ -3,7 +3,9 @@
 #include <daly-bms-uart.h>
 #include "WifiManager.h"
 #include "Config.h"
+#include "ota.hpp"
 
+#define OPTOCOUPLER_VCC_PIN 21
 #define BMS_SERIAL Serial2 // ESP32: TX 17 RX 16
 Daly_BMS_UART bms(BMS_SERIAL);
 
@@ -28,7 +30,6 @@ void MqttPublish(const char *topic, const int value)
 {
   MqttPublish(topic, String(value));
 }
-
 
 bool MqttConnect(int timeout)
 {
@@ -55,12 +56,14 @@ bool MqttConnect(int timeout)
 
 void setup()
 {
+  pinMode(OPTOCOUPLER_VCC_PIN, OUTPUT);
+  digitalWrite(OPTOCOUPLER_VCC_PIN, HIGH);
+
   Serial.begin(115200);
   bms.Init();
 
   mqtt_client.begin(MQTT_SERVER, MQTT_SERVERPORT, wifi_client);
 
-  // connect to internet
   if (wifi.Connect(10000))
   {
     MqttConnect(3000);
@@ -71,56 +74,64 @@ void setup()
     Serial.flush();
     ESP.restart();
   }
+
+  ota::init(HOSTNAME, OTA_AUTH);
 }
 
 void loop()
 {
-  mqtt_client.loop();
-  if (bms.update())
+  ota::update(1000);
+
+  if (MqttConnect(3000))
   {
-    MqttPublish(MQTT_TOPIC_PREFIX "uart_conected", 1);
+    mqtt_client.loop();
 
-    // And print them out!
-    Serial.println("basic BMS Data:              " + (String)bms.get.packVoltage + "V " + (String)bms.get.packCurrent + "I " + (String)bms.get.packSOC + "\% ");
-    MqttPublish(MQTT_TOPIC_PREFIX "sensor/voltage", bms.get.packVoltage);
-    MqttPublish(MQTT_TOPIC_PREFIX "sensor/current", bms.get.packCurrent);
-    MqttPublish(MQTT_TOPIC_PREFIX "sensor/soc", bms.get.packSOC);
-
-    Serial.println("Package Temperature:         " + (String)bms.get.tempAverage);
-    MqttPublish(MQTT_TOPIC_PREFIX "sensor/temperature", bms.get.tempAverage);
-
-    Serial.println("Charge Status:               " + bms.get.chargeDischargeStatus);
-    MqttPublish(MQTT_TOPIC_PREFIX "sensor/charge", bms.get.chargeDischargeStatus);
-    
-    Serial.println("BMS Chrg / Dischrg Cycles:   " + (String)bms.get.bmsCycles);
-    MqttPublish(MQTT_TOPIC_PREFIX "sensor/cycles", bms.get.bmsCycles);
-    Serial.println("BMS Heartbeat:               " + (String)bms.get.bmsHeartBeat); // cycle 0-255
-    MqttPublish(MQTT_TOPIC_PREFIX "sensor/heartbeat", bms.get.bmsHeartBeat);
-    Serial.println("Remaining Capacity mAh:      " + (String)bms.get.resCapacitymAh);
-    MqttPublish(MQTT_TOPIC_PREFIX "sensor/capacity", bms.get.resCapacitymAh);
-
-    Serial.println("Number of Cells:             " + (String)bms.get.numberOfCells);
-    MqttPublish(MQTT_TOPIC_PREFIX "sensor/cells", bms.get.numberOfCells);
-    for (size_t i = 0; i < size_t(bms.get.numberOfCells); i++)
+    if (bms.update())
     {
-      String prefix = String(MQTT_TOPIC_PREFIX) + "sensor/cell" + String(i) + "/";
-      Serial.println("Cell Voltage mV:             " + (String)bms.get.cellVmV[i]);
-      MqttPublish((prefix + "voltage").c_str(), bms.get.cellVmV[i]);
-      Serial.println("Cell Balanced:               " + (String)bms.get.cellBalanceState[i]);
-      MqttPublish((prefix + "balanced").c_str(), (int)bms.get.cellBalanceState[i]);
+      MqttPublish(MQTT_TOPIC_PREFIX "uart_conected", 1);
+
+      Serial.println("basic BMS Data:              " + (String)bms.get.packVoltage + "V " + (String)bms.get.packCurrent + "I " + (String)bms.get.packSOC + "\% ");
+      MqttPublish(MQTT_TOPIC_PREFIX "sensor/voltage", bms.get.packVoltage);
+      MqttPublish(MQTT_TOPIC_PREFIX "sensor/current", bms.get.packCurrent);
+      MqttPublish(MQTT_TOPIC_PREFIX "sensor/soc", bms.get.packSOC);
+
+      Serial.println("Package Temperature:         " + (String)bms.get.tempAverage);
+      MqttPublish(MQTT_TOPIC_PREFIX "sensor/temperature", bms.get.tempAverage);
+
+      Serial.println("Charge Status:               " + bms.get.chargeDischargeStatus);
+      MqttPublish(MQTT_TOPIC_PREFIX "sensor/charge", bms.get.chargeDischargeStatus);
+
+      Serial.println("BMS Chrg / Dischrg Cycles:   " + (String)bms.get.bmsCycles);
+      MqttPublish(MQTT_TOPIC_PREFIX "sensor/cycles", bms.get.bmsCycles);
+      Serial.println("BMS Heartbeat:               " + (String)bms.get.bmsHeartBeat); // cycle 0-255
+      MqttPublish(MQTT_TOPIC_PREFIX "sensor/heartbeat", bms.get.bmsHeartBeat);
+      Serial.println("Remaining Capacity mAh:      " + (String)bms.get.resCapacitymAh);
+      MqttPublish(MQTT_TOPIC_PREFIX "sensor/capacity", bms.get.resCapacitymAh);
+
+      Serial.println("Number of Cells:             " + (String)bms.get.numberOfCells);
+      MqttPublish(MQTT_TOPIC_PREFIX "sensor/cells", bms.get.numberOfCells);
+      for (size_t i = 0; i < size_t(bms.get.numberOfCells); i++)
+      {
+        String prefix = String(MQTT_TOPIC_PREFIX) + "sensor/cell" + String(i) + "/";
+        Serial.println("Cell Voltage mV:             " + (String)bms.get.cellVmV[i]);
+        MqttPublish((prefix + "voltage").c_str(), bms.get.cellVmV[i]);
+        Serial.println("Cell Balanced:               " + (String)bms.get.cellBalanceState[i]);
+        MqttPublish((prefix + "balanced").c_str(), (int)bms.get.cellBalanceState[i]);
+      }
+    }
+    else
+    {
+      Serial.println("Can't connect to BMS!");
+      MqttPublish(MQTT_TOPIC_PREFIX "uart_conected", 0);
     }
   }
-  else
-  {
-    Serial.println("Can't connect to BMS!");
-    MqttPublish(MQTT_TOPIC_PREFIX "uart_conected", 0);
-  }
 
-  if (!wifi.Connected() || !mqtt_client.connected() || millis() > 24 * 60 * 60 * 1000) // 24h
+  if (!wifi.Connected() || millis() > 24 * 60 * 60 * 1000) // 24h
   {
+    Serial.println("RESTART");
     Serial.flush();
     ESP.restart();
   }
 
-  vTaskDelay(5000);
+  ota::update(4000);
 }
